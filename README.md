@@ -32,7 +32,7 @@ let examples = [
     (vec![1f64, 1f64], vec![1f64]),  // 1 AND 1 = 1
 ];
 
-let mut net = NN::new(&vec[2, 5, 1]);
+let mut net = NN::new(&vec![2, 5, 1]);
     
 net.train(&examples)
     .halt_condition(HaltCondition::Epochs(10000))
