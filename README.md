@@ -42,7 +42,7 @@ net.train(&examples)
     .go();
     
 // evaluate the network to see if it learned the AND function
-for &(ref inputs, ref outputs) in examples.iter() {
+for &(ref inputs, ref outputs) in examples {
     let results = net.run(inputs);
     let (result, key) = (results[0].round(), outputs[0]);
     assert!(result == key);
