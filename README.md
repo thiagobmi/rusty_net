@@ -10,7 +10,7 @@ let mut nn = NN::new(&vec![3,10, 1]); // Network can be defined via a vec specif
 nn.train(&examples) 
     .rate(0.1) // Adjusting learning rate
     .momentum(0.9) // Adjusting momentum
-    .log_interval(Some(100)) // Adjusting log interval (print eror each 100 epochs)
+    .log_interval(Some(100)) // Adjusting log interval (print error each 100 epochs)
     .halt_condition(Epochs(5000)) // Adjusting halt condition (network will stop after 5000 epochs)
     .go();
 ```
