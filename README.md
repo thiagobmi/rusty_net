@@ -7,7 +7,10 @@ rusty_net is a user-friendly Rust library for building feedforward neural networ
 The library allows for easy configuration of key parameters, including momentum, learning rate, and halt conditions, simplifying the training process.
 
 ```rust
-// Creating a network with 2 nodes in input layer, two hidden layers, with 3 and 5 nodes, and an output layer with 2 nodes.
+// Creating a network with:
+// 2 nodes in input layer,
+// two hidden layers, with 3 and 5 nodes,
+// and an output layer with 2 nodes.
 let mut nn = NN::new(&vec![2, 3, 5, 2]); 
 
 nn.train(&examples) 
