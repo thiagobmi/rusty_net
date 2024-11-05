@@ -17,7 +17,7 @@ nn.train(&examples)
         .rate(0.1) // Configuring learning rate
         .momentum(0.9) // Configuring momentum
         .log_interval(Some(100)) // Network will log the error each 100 epochs
-        .halt_condition(Epochs(5000)) // Setting halt condition (Stop after 5000 epochs)
+        .halt_condition(Epochs(5000)) // Setting halt condition (stop after 5000 epochs)
         .go(); // Starts the training
 
 
