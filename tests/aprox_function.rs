@@ -26,12 +26,12 @@ fn read_file<P: AsRef<Path>>(path: P) -> io::Result<Vec<(Vec<f64>, Vec<f64>)>> {
 }
 
 fn main() {
-    let mut m = NN::new(&vec![3,10, 1]);
-
-    let file_path = "./data/samples.txt";
+    
+    let file_path = "./data_aprox/samples.txt";
     let examples = read_file(file_path).unwrap();
-
-    m.train(&examples)
+    
+    let mut nn = NN::new(&vec![3,10, 1]);
+    nn.train(&examples)
         .rate(0.1)
         .momentum(0.9)
         .log_interval(Some(100))
@@ -39,14 +39,14 @@ fn main() {
         .go();
 
 
-    let file_path = "./data/validation.txt";
+    let file_path = "./data_aprox/validation.txt";
     let samples = read_file(file_path).unwrap();
     let mut error_sum = 0.0;
     let mut count = 0;
 
     for sample in samples {
         let inputs = &sample.0;
-        let result = m.run(inputs);
+        let result = nn.run(inputs);
         let output = result[0];
         let actual = sample.1[0];
 
