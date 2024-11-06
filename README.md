@@ -26,7 +26,7 @@ nn.train(&examples)
 
 
 # AND example
-This example initializes a neural network with an input layer of 2 nodes, a single hidden layer with 3 nodes, and an output layer containing 1 node. The network is trained on examples of the XOR function. After calling train(&examples), additional methods are used to configure training options, though these are optional. Training begins when the go() method is called, prompting the network to learn from the provided examples.
+This example initializes a neural network with an input layer of 2 nodes, a single hidden layer with 3 nodes, and an output layer containing 1 node. The network is trained on examples of the AND function. After calling train(&examples), additional methods are used to configure training options, though these are optional. Training begins when the go() method is called, prompting the network to learn from the provided examples.
 
 ```rust
 use rusty_net::{NN, HaltCondition};
