@@ -3,8 +3,8 @@ use std::vec;
 use rand_distr::{Distribution, Normal};
 use std::f64::EPSILON;
 use serde_json;
-
-use serde::{Serialize, Deserialize};
+use std::fs;
+use serde_json::Value;
 
 static DEFAULT_LEARNING_RATE: f64 = 0.3f64;
 static DEFAULT_MOMENTUM: f64 = 0f64;
@@ -13,13 +13,6 @@ static DEFAULT_EPOCHS: u32 = 1000;
 pub enum HaltCondition {
     Epochs(u32),
     MSE(f64),
-}
-
-#[derive(Serialize, Deserialize)]
-struct NNData {
-    layers: Vec<u32>,
-    weights: Vec<Vec<Vec<f64>>>,
-    biases: Vec<Vec<f64>>,
 }
 
 pub enum ActivationFunction {
@@ -384,8 +377,8 @@ impl NN {
             activation_derivative: Self::sigmoid_derivative,
         };
 
-        nn.generate_weights();
-        // nn.generate_weights_he();
+        // nn.generate_weights();
+        nn.generate_weights_he();
 
         nn
     }
@@ -473,7 +466,7 @@ impl NN {
     }
 
     pub fn save_as_json(&self, path: &str) {
-        let mut json = serde_json::json!({
+        let json = serde_json::json!({
             "layers": self.layers,
             "weights": self.weights,
             "biases": self.biases,
@@ -483,17 +476,46 @@ impl NN {
         std::fs::write(path, serialized).unwrap();
     }
 
-    pub fn from_json(path: &str) -> std::io::Result<Self> {
-        let file = std::fs::read_to_string(path)?;
-        let data: NNData = serde_json::from_str(&file)?;
+    pub fn load_from_json(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
+
+        let contents = fs::read_to_string(path)?;
+        let json: Value = serde_json::from_str(&contents)?;
+
+        let layers: Vec<u32> = serde_json::from_value(json["layers"].clone())?;
         
-        Ok(NN {
-            layers: data.layers,
-            weights: data.weights,
-            biases: data.biases,
-            activation_function: Self::sigmoid,
-            activation_derivative: Self::sigmoid_derivative,
-        })
+        let mut nn = NN::new(&layers);
+        
+        nn.weights = serde_json::from_value(json["weights"].clone())?;
+        
+        nn.biases = serde_json::from_value(json["biases"].clone())?;
+        
+        if nn.weights.len() != layers.len() - 1 {
+            return Err("Invalid weights structure in JSON file".into());
+        }
+        
+        if nn.biases.len() != layers.len() - 1 {
+            return Err("Invalid biases structure in JSON file".into());
+        }
+        
+        for (i, weight_layer) in nn.weights.iter().enumerate() {
+            if weight_layer.len() != layers[i + 1] as usize {
+                return Err(format!("Invalid weights dimension at layer {}", i).into());
+            }
+            
+            for weights in weight_layer {
+                if weights.len() != layers[i] as usize {
+                    return Err(format!("Invalid weights dimension at layer {}", i).into());
+                }
+            }
+        }
+        
+        for (i, bias_layer) in nn.biases.iter().enumerate() {
+            if bias_layer.len() != layers[i + 1] as usize {
+                return Err(format!("Invalid biases dimension at layer {}", i).into());
+            }
+        }
+        
+        Ok(nn)
     }
 
     fn dot_product(first: &[f64], second: &[f64]) -> Result<f64, &'static str> {
