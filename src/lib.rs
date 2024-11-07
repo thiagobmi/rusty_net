@@ -19,6 +19,7 @@ pub enum ActivationFunction {
     ReLU,
     Sigmoid,
     LeakyReLU,
+    TanH
 }
 
 pub enum LossFunction {
@@ -215,6 +216,10 @@ impl NN {
             ActivationFunction::LeakyReLU => {
                 self.activation_function = Self::leaky_relu;
                 self.activation_derivative = Self::leaky_relu_derivative;
+            }
+            ActivationFunction::TanH => {
+                self.activation_function = Self::tanh;
+                self.activation_derivative = Self::tanh_derivative;
             }
         }
         self
@@ -555,4 +560,11 @@ impl NN {
         if x > 0.0 { 1.0 } else { 0.01 }
     }
 
+    fn tanh(x: f64) -> f64 {
+        x.tanh()
+    }
+
+    fn tanh_derivative(x: f64) -> f64 {
+        1.0 - x.powi(2)
+    }
 }
