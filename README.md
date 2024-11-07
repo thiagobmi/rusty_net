@@ -24,21 +24,6 @@ nn.train(&examples)
 ```
 ![image](https://github.com/user-attachments/assets/cc48f228-71e1-4b70-8ff0-5f717bd3c6b3)
 
-## Saving
-
-You can save the weights and biases of your network in a json file by simply using:
-
-```rust
-nn.save_as_json("nn.json");
-```
-
-The data can then be loaded with:
-
-```rust
-let nn = NN::load_from_json("nn.json");
-```
-
-
 ## Additional Parameters
 
 This library offers advanced options for configuring your neural network, such as activation functions and loss functions. These parameters provide flexibility to tailor your model to specific requirements.
@@ -64,6 +49,21 @@ nn.train(&examples)
 ***Loss functions:***
  - Mean Squared Error (MSE)
  - Cross Entropy
+
+
+## Saving
+
+You can save the weights and biases of your network in a json file by simply using:
+
+```rust
+nn.save_as_json("nn.json");
+```
+
+The data can then be loaded with:
+
+```rust
+let nn = NN::load_from_json("nn.json");
+```
 
 
 # AND example
