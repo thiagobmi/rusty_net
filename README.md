@@ -24,6 +24,47 @@ nn.train(&examples)
 ```
 ![image](https://github.com/user-attachments/assets/cc48f228-71e1-4b70-8ff0-5f717bd3c6b3)
 
+## Saving
+
+You can save the weights and biases of your network in a json file by simply using:
+
+```rust
+nn.save_as_json("nn.json");
+```
+
+The data can then be loaded with:
+
+```rust
+let nn = NN::load_from_json("nn.json");
+```
+
+
+## Additional Parameters
+
+This library offers advanced options for configuring your neural network, such as activation functions and loss functions. These parameters provide flexibility to tailor your model to specific requirements.
+
+```rust
+
+// Set the activation function
+let mut nn = NN::new(&vec![2, 2, 1]);
+nn.activation(rusty_net::ActivationFunction::LeakyReLU);
+
+// Set the loss function
+nn.train(&examples)
+        .loss_function(rusty_net::LossFunction::CrossEntropy)
+        .go();
+```
+
+***Activation functions:***
+ - Sigmoid
+ - ReLU
+ - Leaky ReLU
+ - TanH
+
+***Loss functions:***
+ - Mean Squared Error (MSE)
+ - Cross Entropy
+
 
 # AND example
 This example initializes a neural network with an input layer of 2 nodes, a single hidden layer with 3 nodes, and an output layer containing 1 node. The network is trained on examples of the AND function. After calling train(&examples), additional methods are used to configure training options, though these are optional. Training begins when the go() method is called, prompting the network to learn from the provided examples.
