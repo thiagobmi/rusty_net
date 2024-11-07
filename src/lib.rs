@@ -1,15 +1,38 @@
-use rand::Rng;
+use rand::{thread_rng, Rng};
 use std::vec;
+use rand_distr::{Distribution, Normal};
+use std::f64::EPSILON;
+use serde_json;
+
+use serde::{Serialize, Deserialize};
 
 static DEFAULT_LEARNING_RATE: f64 = 0.3f64;
 static DEFAULT_MOMENTUM: f64 = 0f64;
 static DEFAULT_EPOCHS: u32 = 1000;
-use HaltCondition::{Epochs, MSE};
 
 pub enum HaltCondition {
     Epochs(u32),
     MSE(f64),
 }
+
+#[derive(Serialize, Deserialize)]
+struct NNData {
+    layers: Vec<u32>,
+    weights: Vec<Vec<Vec<f64>>>,
+    biases: Vec<Vec<f64>>,
+}
+
+pub enum ActivationFunction {
+    ReLU,
+    Sigmoid,
+    LeakyReLU,
+}
+
+pub enum LossFunction {
+    MeanSquaredError,
+    CrossEntropy,
+}
+
 pub struct Trainer<'a> {
     examples: &'a [(Vec<f64>, Vec<f64>)],
     learning_rate: f64,
@@ -18,22 +41,28 @@ pub struct Trainer<'a> {
     log_interval: Option<u32>,
     prev_weights_delta: Vec<Vec<Vec<f64>>>,
     prev_biases_delta: Vec<Vec<f64>>,
+    loss_function: LossFunction,
     nn: &'a mut NN,
 }
 
 impl<'a> Trainer<'a> {
     pub fn halt_condition(&mut self, halt_condition: HaltCondition) -> &mut Trainer<'a> {
         match halt_condition {
-            Epochs(epochs) if epochs < 1 => {
+            HaltCondition::Epochs(epochs) if epochs < 1 => {
                 panic!("must train for at least one epoch")
             }
-            MSE(mse) if mse <= 0f64 => {
+            HaltCondition::MSE(mse) if mse <= 0f64 => {
                 panic!("MSE must be greater than 0")
             }
             _ => (),
         }
 
         self.halt_condition = halt_condition;
+        self
+    }
+
+    pub fn loss_function(&mut self, loss_function: LossFunction) -> &mut Trainer<'a> {
+        self.loss_function = loss_function;
         self
     }
 
@@ -67,6 +96,33 @@ impl<'a> Trainer<'a> {
         self
     }
 
+
+    fn get_cross_entropy_loss(&self) -> f64 {
+        let (total_error, count) =
+            self.examples
+                .iter()
+                .fold((0.0, 0), |(acc_error, acc_count), example| {
+                    let (inputs, expected_outputs) = example;
+                    let (_, outputs) = self.nn.forward(inputs);
+                    let output = outputs.last().unwrap();
+
+                    let error: f64 = expected_outputs
+                        .iter()
+                        .zip(output)
+                        .map(|(expected, actual)| {
+                            let actual_clamped = actual.clamp(EPSILON, 1.0 - EPSILON);
+                            -expected * actual_clamped.ln() - (1.0 - expected) * (1.0 - actual_clamped).ln()
+                        })
+                        .sum();
+
+                    (acc_error + error, acc_count + expected_outputs.len())
+                });
+
+        total_error / count as f64
+    }
+
+
+    
     fn get_mean_squared_error(&self) -> f64 {
         let (total_error, count) =
             self.examples
@@ -107,7 +163,11 @@ impl<'a> Trainer<'a> {
                 );
             }
 
-            current_error = self.get_mean_squared_error();
+            current_error = match self.loss_function {
+                LossFunction::MeanSquaredError => self.get_mean_squared_error(),
+                LossFunction::CrossEntropy => self.get_cross_entropy_loss(),
+            };
+        
             let error = (last_error - current_error).abs();
             _epochs += 1;
 
@@ -118,12 +178,12 @@ impl<'a> Trainer<'a> {
                 _ => (),
             }
             match self.halt_condition {
-                Epochs(epochs_halt) => {
+                HaltCondition::Epochs(epochs_halt) => {
                     if _epochs == epochs_halt {
                         break;
                     }
                 }
-                MSE(target_error) => {
+                HaltCondition::MSE(target_error) => {
                     println!("Error: {:?}", error / target_error);
                     if error <= target_error {
                         break;
@@ -138,6 +198,8 @@ pub struct NN {
     layers: Vec<u32>,
     weights: Vec<Vec<Vec<f64>>>,
     biases: Vec<Vec<f64>>,
+    activation_function: fn(f64) -> f64,
+    activation_derivative: fn(f64) -> f64,
 }
 
 impl NN {
@@ -146,6 +208,25 @@ impl NN {
         outputs.last().unwrap().clone()
     }
 
+    pub fn activation(&mut self, activation: ActivationFunction) -> &mut NN {
+        
+        match activation {
+            ActivationFunction::ReLU => {
+                self.activation_function = Self::relu;
+                self.activation_derivative = Self::relu_derivative;
+            }
+            ActivationFunction::Sigmoid => {
+                self.activation_function = Self::sigmoid;
+                self.activation_derivative = Self::sigmoid_derivative;
+            }
+            ActivationFunction::LeakyReLU => {
+                self.activation_function = Self::leaky_relu;
+                self.activation_derivative = Self::leaky_relu_derivative;
+            }
+        }
+        self
+    }
+    
     fn compute_layer_input(inputs: &[f64], weights: &[Vec<f64>], biases: &[f64]) -> Vec<f64> {
         weights
             .iter()
@@ -162,7 +243,7 @@ impl NN {
         let mut neuron_inputs: Vec<Vec<f64>> = Vec::with_capacity(num_layers);
 
         let initial_inputs = Self::compute_layer_input(&input, &self.weights[0], &self.biases[0]);
-        let initial_outputs = initial_inputs.iter().map(|&x| Self::sigmoid(x)).collect();
+        let initial_outputs = initial_inputs.iter().map(|&x| (self.activation_function)(x)).collect();
 
         neuron_inputs.push(initial_inputs);
         neuron_outputs.push(initial_outputs);
@@ -174,7 +255,7 @@ impl NN {
                 &self.weights[layer_index],
                 &self.biases[layer_index],
             );
-            let layer_outputs = layer_inputs.iter().map(|&x| Self::sigmoid(x)).collect();
+            let layer_outputs = layer_inputs.iter().map(|&x| (self.activation_function)(x)).collect();
 
             neuron_inputs.push(layer_inputs);
             neuron_outputs.push(layer_outputs);
@@ -183,12 +264,12 @@ impl NN {
         (neuron_inputs, neuron_outputs)
     }
 
-    fn compute_output_delta(last_output: &Vec<f64>, outputs: &Vec<f64>) -> Vec<f64> {
+    fn compute_output_delta(last_output: &Vec<f64>, outputs: &Vec<f64>, activation_derivative: fn(f64) -> f64) -> Vec<f64> {
         last_output
             .iter()
             .zip(outputs)
             .map(|(&net_output, &desired_output)| {
-                (desired_output - net_output) * net_output * (1.0 - net_output)
+                (desired_output - net_output) * activation_derivative(net_output)
             })
             .collect()
     }
@@ -224,6 +305,7 @@ impl NN {
         next_layer_delta: &Vec<f64>,
         cur_weights: &Vec<Vec<f64>>,
         cur_output: &Vec<f64>,
+        activation_derivative: fn(f64) -> f64,
     ) -> Vec<f64> {
         cur_output
             .iter()
@@ -234,7 +316,7 @@ impl NN {
                     .enumerate()
                     .map(|(k, &delta)| delta * cur_weights[k][j])
                     .sum();
-                sum * output * (1.0 - output)
+                sum * activation_derivative(output)
             })
             .collect()
     }
@@ -252,7 +334,7 @@ impl NN {
         let num_layers = self.layers.len();
         let (_, neuron_outputs) = network_data;
         let last_output = neuron_outputs.last().unwrap();
-        let mut deltas: Vec<Vec<f64>> = vec![Self::compute_output_delta(last_output, outputs)];
+        let mut deltas: Vec<Vec<f64>> = vec![Self::compute_output_delta(last_output, outputs, self.activation_derivative)];
 
         for index in (2..num_layers).rev() {
             let delta_index = num_layers - index - 1;
@@ -272,6 +354,7 @@ impl NN {
                 &deltas[delta_index],
                 &self.weights[index - 1],
                 &neuron_outputs[index - 2],
+                self.activation_derivative,
             );
             deltas.push(current_delta);
         }
@@ -297,11 +380,16 @@ impl NN {
             layers: layers.clone(),
             weights: vec![],
             biases: vec![],
+            activation_function: Self::sigmoid,
+            activation_derivative: Self::sigmoid_derivative,
         };
 
         nn.generate_weights();
+        // nn.generate_weights_he();
+
         nn
     }
+
 
     fn generate_weights(&mut self) {
         let mut rng = rand::thread_rng();
@@ -325,6 +413,30 @@ impl NN {
             .skip(1)
             .map(|&l| (0..l).map(|_| rng.gen_range(-1.0..1.0)).collect())
             .collect();
+    }
+
+    fn generate_weights_he(&mut self) {
+
+        let mut rng = thread_rng();
+        
+        self.weights = self.layers.windows(2).map(|layer_pair| {
+            let fan_in = layer_pair[0] as f64;
+            let he_std_dev = (2.0 / fan_in).sqrt();
+            let normal_dist = Normal::new(0.0, he_std_dev).unwrap();
+            
+            (0..layer_pair[1])
+                .map(|_| {
+                    (0..layer_pair[0])
+                        .map(|_| normal_dist.sample(&mut rng))
+                        .collect()
+                })
+                .collect()
+        }).collect();
+    
+        let normal_dist = Normal::new(0.0, 1.0).unwrap();
+        self.biases = self.layers.iter().skip(1).map(|&l| {
+            (0..l).map(|_| normal_dist.sample(&mut rng)).collect()
+        }).collect();
     }
 
     pub fn train<'a>(&'a mut self, examples: &'a [(Vec<f64>, Vec<f64>)]) -> Trainer {
@@ -353,10 +465,35 @@ impl NN {
                 .map(|layer| vec![0.0; layer.len()])
                 .collect(),
             learning_rate: DEFAULT_LEARNING_RATE,
-            halt_condition: Epochs(DEFAULT_EPOCHS),
+            halt_condition: HaltCondition::Epochs(DEFAULT_EPOCHS),
             log_interval: None,
             nn: self,
+            loss_function: LossFunction::MeanSquaredError,
         }
+    }
+
+    pub fn save_as_json(&self, path: &str) {
+        let mut json = serde_json::json!({
+            "layers": self.layers,
+            "weights": self.weights,
+            "biases": self.biases,
+        });
+
+        let serialized = serde_json::to_string_pretty(&json).unwrap();
+        std::fs::write(path, serialized).unwrap();
+    }
+
+    pub fn from_json(path: &str) -> std::io::Result<Self> {
+        let file = std::fs::read_to_string(path)?;
+        let data: NNData = serde_json::from_str(&file)?;
+        
+        Ok(NN {
+            layers: data.layers,
+            weights: data.weights,
+            biases: data.biases,
+            activation_function: Self::sigmoid,
+            activation_derivative: Self::sigmoid_derivative,
+        })
     }
 
     fn dot_product(first: &[f64], second: &[f64]) -> Result<f64, &'static str> {
@@ -371,4 +508,29 @@ impl NN {
     fn sigmoid(y: f64) -> f64 {
         1f64 / (1f64 + (-y).exp())
     }
+
+    fn sigmoid_derivative(y: f64) -> f64 {
+        y * (1f64 - y)
+    }
+
+    fn relu(x: f64) -> f64 {
+        x.max(0.0)
+    }
+    
+    fn relu_derivative(x: f64) -> f64 {
+        if x > 0.0 { 1.0 } else { 0.0 }
+    }
+
+    fn leaky_relu(x: f64) -> f64 {
+        if x > 0.0 {
+            x
+        } else {
+            0.01 * x
+        }
+    }
+
+    fn leaky_relu_derivative(x: f64) -> f64 {
+        if x > 0.0 { 1.0 } else { 0.01 }
+    }
+
 }
