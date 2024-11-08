@@ -1,12 +1,13 @@
 use serde::{Deserialize, Serialize};
 use std::f64::EPSILON;
-
+use std::time::Instant;
 use crate::nn::NN;
 
 #[derive(Serialize, Deserialize)]
 pub enum HaltCondition {
     Epochs(u32),
     MSE(f64),
+    Time(u32),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -127,6 +128,7 @@ impl<'a> Trainer<'a> {
     pub fn go(&mut self) {
         let mut current_error = 0.0;
         let mut _epochs = 0;
+        let mut start = Instant::now();
         loop {
             let last_error = current_error;
 
@@ -164,8 +166,12 @@ impl<'a> Trainer<'a> {
                     }
                 }
                 HaltCondition::MSE(target_error) => {
-                    println!("Error: {:?}", error / target_error);
                     if error <= target_error {
+                        break;
+                    }
+                }
+                HaltCondition::Time(time) => {
+                    if start.elapsed().as_secs() >= time as u64 {
                         break;
                     }
                 }
